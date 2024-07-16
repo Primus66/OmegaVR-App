@@ -1,21 +1,31 @@
 import csv
 import os
-import random
 import tkinter as tk
 from tkinter import messagebox, filedialog
-import numpy as np
 from PIL import Image, ImageTk
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 import boto3
 from botocore.exceptions import NoCredentialsError
+import numpy as np
+import time  # To simulate delay for calibration steps
 
 
-def generate_realistic_eeg_data():
-    time = np.linspace(0, 1, 100)
-    eeg_data = [np.sin(2 * np.pi * 10 * time) + np.random.randn(100) * 0.1 for _ in range(6)]
-    return eeg_data
+# Replace this with your actual EEG hardware interface
+class EEGHardware:
+    def __init__(self):
+        # Initialize connection to the hardware
+        pass
+
+    def get_data(self):
+        # Simulate hardware data acquisition
+        time.sleep(0.1)  # Simulate delay
+        time_points = np.linspace(0, 1, 100)
+        eeg_data = [np.sin(2 * np.pi * 10 * time_points) + np.random.randn(100) * 0.1 for _ in range(6)]
+        return eeg_data
+
+
+eeg_hardware = EEGHardware()
 
 
 def upload_to_aws(local_file, bucket, s3_file):
@@ -137,7 +147,7 @@ class MainWindow(tk.Frame):
             messagebox.showerror("Error", f"Failed to load small icon: {e}")
 
     def capture_eeg_data(self, action):
-        eeg_data = generate_realistic_eeg_data()
+        eeg_data = eeg_hardware.get_data()
         self.calibration_data[action].append(eeg_data)
         for i, ax in enumerate(self.axs):
             ax.clear()

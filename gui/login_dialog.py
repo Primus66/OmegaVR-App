@@ -4,6 +4,8 @@ from PIL import Image, ImageTk
 import os
 from database.database import register_user, login_user
 from datetime import datetime
+from gui.calibration import CalibrationTool 
+
 
 class LoginDialog(tk.Frame):
     def __init__(self, parent, on_success):
@@ -32,6 +34,10 @@ class LoginDialog(tk.Frame):
         self.password_entry.place(relx=0.5, y=260, anchor="n")
         tk.Button(self, text="Login", command=self.login).place(relx=0.5, y=310, anchor="n")
         tk.Button(self, text="Register", command=self.setup_register).place(relx=0.5, y=350, anchor="n")
+        tk.Button(self, text="Calibrate", command=self.open_calibration_tool).place(relx=0.5, y=390, anchor="n")  # Add Calibrate button
+
+    def open_calibration_tool(self):
+        CalibrationTool(self)  # Open the calibration tool
 
     def load_background_image(self):
         try:
