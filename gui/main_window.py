@@ -8,32 +8,32 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import boto3
 from botocore.exceptions import NoCredentialsError
 import numpy as np
-import time  # To simulate delay for calibration steps
+import time
+import tensorflow as tf
 
+# Load your modified LSTM model
+model_path = 'update the model path'
+model = tf.keras.models.load_model(model_path)
 
 # Replace this with your actual EEG hardware interface
 class EEGHardware:
     def __init__(self):
-        # Initialize connection to the hardware
         pass
 
     def get_data(self):
-        # Simulate hardware data acquisition
-        time.sleep(0.1)  # Simulate delay
+        time.sleep(0.1)
         time_points = np.linspace(0, 1, 100)
         eeg_data = [np.sin(2 * np.pi * 10 * time_points) + np.random.randn(100) * 0.1 for _ in range(6)]
         return eeg_data
 
-
 eeg_hardware = EEGHardware()
-
 
 def upload_to_aws(local_file, bucket, s3_file):
     s3 = boto3.client(
         's3',
         aws_access_key_id='YOUR_ACCESS_KEY',
         aws_secret_access_key='YOUR_SECRET_KEY',
-        region_name='us-east-1'  # Specify your region here
+        region_name='us-east-1'
     )
     try:
         s3.upload_file(local_file, bucket, s3_file)
@@ -46,6 +46,16 @@ def upload_to_aws(local_file, bucket, s3_file):
         print("Credentials not available")
         return False
 
+def preprocess_eeg_data(eeg_data):
+    eeg_data = np.array(eeg_data)
+    eeg_data = (eeg_data - np.min(eeg_data)) / (np.max(eeg_data) - np.min(eeg_data))  # Normalize
+    eeg_data = eeg_data.reshape((1, 100, 6))  # Reshape for LSTM input
+    return eeg_data
+
+def make_prediction(model, eeg_data):
+    processed_data = preprocess_eeg_data(eeg_data)
+    predictions = model.predict(processed_data)
+    return np.argmax(predictions, axis=-1)
 
 class MainWindow(tk.Frame):
     def __init__(self, parent, exit_callback):
@@ -53,32 +63,28 @@ class MainWindow(tk.Frame):
         self.parent = parent
         self.exit_callback = exit_callback
         self.calibration_data = []
-        self.calibrating = False  # Track calibration state
-        self.electrode_status = [True] * 6  # Fixed and active
+        self.calibrating = False
+        self.electrode_status = [True] * 6
         self.initUI()
 
     def initUI(self):
         self.configure(bg="white")
 
-        # Frame for calibration graph and task image
         self.left_frame = tk.Frame(self, bg="white")
         self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
 
         self.right_frame = tk.Frame(self, bg="white")
         self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=1)
 
-        # Calibration graph
         self.fig, self.axs = plt.subplots(6, 1, figsize=(5, 12), dpi=100)
         self.fig.tight_layout(pad=3.0)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.left_frame)
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
 
-        # Task image
         self.image_label = tk.Label(self.right_frame, bg="white")
         self.image_label.pack(pady=20)
 
-        # Instructions and progress
         self.instruction_label = tk.Label(self.right_frame, text="", font=("Helvetica", 15), bg="white")
         self.instruction_label.pack(pady=20)
         self.progress_bar = tk.Label(self.right_frame, text="Progress: 0/4", font=("Helvetica", 12), bg="white")
@@ -90,12 +96,11 @@ class MainWindow(tk.Frame):
                                                  command=self.show_electrode_status)
         self.electrode_status_button.pack(pady=10)
 
-        # Small icon in the bottom left corner
         self.small_icon_label = tk.Label(self.left_frame, bg="white")
         self.small_icon_label.place(relx=0.0, rely=1.0, anchor='sw')
 
     def start_calibration(self):
-        if not self.calibrating:  # Only start if not already calibrating
+        if not self.calibrating:
             self.calibrating = True
             self.start_button.config(text="Calibrating...", state=tk.DISABLED)
             self.electrode_status_button.config(state=tk.DISABLED)
@@ -116,7 +121,7 @@ class MainWindow(tk.Frame):
     def perform_action(self, action):
         self.instruction_label.config(text=f"Now {action}")
         self.capture_eeg_data(action)
-        self.after(5000, self.next_calibration_step)  # Perform action for 5 seconds
+        self.after(5000, self.next_calibration_step)
 
     def show_calibration_image(self, action):
         image_file_map = {
@@ -135,7 +140,6 @@ class MainWindow(tk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load image for {action}: {e}")
 
-        # Display small icon
         small_icon_path = os.path.join("gui", "calibration_images", "small_icon.png")
         try:
             small_icon = Image.open(small_icon_path)
@@ -155,8 +159,37 @@ class MainWindow(tk.Frame):
             ax.set_title(f"EEG Data - Electrode {i + 1} - {action}")
         self.fig.tight_layout(pad=3.0)
         self.canvas.draw()
+
+        prediction = make_prediction(model, eeg_data)
+        self.update_gui_with_prediction(prediction)
+
         self.current_action += 1
         self.progress_bar.config(text=f"Progress: {self.current_action}/{len(self.actions)}")
+
+    def update_gui_with_prediction(self, prediction):
+        actions = ["Left Click", "Right Click", "Scroll Up", "Scroll Down"]
+        predicted_action = actions[prediction[0]]
+
+        if predicted_action == "Left Click":
+            self.simulate_mouse_click()
+        elif predicted_action == "Right Click":
+            self.simulate_right_click()
+        elif predicted_action == "Scroll Up":
+            self.simulate_scroll_up()
+        elif predicted_action == "Scroll Down":
+            self.simulate_scroll_down()
+
+    def simulate_mouse_click(self):
+        print("Simulating Mouse Click")
+
+    def simulate_right_click(self):
+        print("Simulating Right Click")
+
+    def simulate_scroll_up(self):
+        print("Simulating Scroll Up")
+
+    def simulate_scroll_down(self):
+        print("Simulating Scroll Down")
 
     def complete_calibration(self):
         messagebox.showinfo("Calibration Complete", "Calibration is complete!")
@@ -165,7 +198,7 @@ class MainWindow(tk.Frame):
         self.image_label.image = None
         self.start_button.config(text="Start Calibration", state=tk.NORMAL)
         self.electrode_status_button.config(state=tk.NORMAL)
-        self.calibrating = False  # Reset calibration state
+        self.calibrating = False
 
     def save_data(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
@@ -181,7 +214,6 @@ class MainWindow(tk.Frame):
                         writer.writerow(row)
             messagebox.showinfo("Success", "Data saved successfully!")
 
-            # Upload to AWS
             bucket = 'your-bucket-name'
             s3_file = os.path.basename(file_path)
             if upload_to_aws(file_path, bucket, s3_file):
@@ -199,7 +231,6 @@ class MainWindow(tk.Frame):
                                     for i, status in enumerate(self.electrode_status)])
         messagebox.showinfo("Electrode Status", status_message)
 
-
 def main():
     root = tk.Tk()
     root.title("OmegaVR EEG Calibration")
@@ -207,7 +238,6 @@ def main():
     app = MainWindow(root, exit_callback=root.quit)
     app.pack(fill="both", expand=True)
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()
