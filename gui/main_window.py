@@ -8,23 +8,26 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import boto3
 from botocore.exceptions import NoCredentialsError
 import numpy as np
-import time
+from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 
-# Load your modified LSTM model
-model_path = 'update the model path'
+# Load your LSTM model
+model_path = 'C:\\Users\\ADMIN\\Documents\\OmegaVR\\models\\lstm_model.h5'
 model = tf.keras.models.load_model(model_path)
+
+scaler = MinMaxScaler()
 
 # Replace this with your actual EEG hardware interface
 class EEGHardware:
     def __init__(self):
+        # Initialize connection to the hardware
         pass
 
     def get_data(self):
-        time.sleep(0.1)
-        time_points = np.linspace(0, 1, 100)
-        eeg_data = [np.sin(2 * np.pi * 10 * time_points) + np.random.randn(100) * 0.1 for _ in range(6)]
-        return eeg_data
+        # Actual implementation to retrieve data from the EEG hardware
+        # Here it should return a list of 6 channels with 100 data points each
+        # Example: [[ch1_data], [ch2_data], ..., [ch6_data]]
+        pass
 
 eeg_hardware = EEGHardware()
 
@@ -48,8 +51,14 @@ def upload_to_aws(local_file, bucket, s3_file):
 
 def preprocess_eeg_data(eeg_data):
     eeg_data = np.array(eeg_data)
-    eeg_data = (eeg_data - np.min(eeg_data)) / (np.max(eeg_data) - np.min(eeg_data))  # Normalize
-    eeg_data = eeg_data.reshape((1, 100, 6))  # Reshape for LSTM input
+
+    # Replace feature value which its absolute value is less than 10
+    eeg_data = np.where(np.abs(eeg_data) < 10, np.nan, eeg_data)
+    eeg_data = np.where(np.isnan(eeg_data), np.nanmean(eeg_data, axis=0), eeg_data)
+
+    eeg_data = scaler.fit_transform(eeg_data)
+
+    eeg_data = eeg_data.reshape((1, 100, 6))
     return eeg_data
 
 def make_prediction(model, eeg_data):
