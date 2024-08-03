@@ -12,22 +12,25 @@ from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 
 # Load your LSTM model
-model_path = 'C:\\Users\\ADMIN\\Documents\\OmegaVR\\models\\lstm_model.h5'
+model_path = 'update your model path'
 model = tf.keras.models.load_model(model_path)
 
 scaler = MinMaxScaler()
 
-# Replace this with your actual EEG hardware interface
 class EEGHardware:
     def __init__(self):
         # Initialize connection to the hardware
         pass
 
     def get_data(self):
-        # Actual implementation to retrieve data from the EEG hardware
-        # Here it should return a list of 6 channels with 100 data points each
+
+        # This should return a list of 6 channels with 100 data points each
         # Example: [[ch1_data], [ch2_data], ..., [ch6_data]]
-        pass
+
+        # Simulate hardware data acquisition for testing purposes
+        time_points = np.linspace(0, 1, 100)
+        eeg_data = [np.sin(2 * np.pi * 10 * time_points) + np.random.randn(100) * 0.1 for _ in range(6)]
+        return eeg_data
 
 eeg_hardware = EEGHardware()
 
@@ -64,7 +67,7 @@ def preprocess_eeg_data(eeg_data):
 def make_prediction(model, eeg_data):
     processed_data = preprocess_eeg_data(eeg_data)
     predictions = model.predict(processed_data)
-    return np.argmax(predictions, axis=-1)
+    return predictions, np.argmax(predictions, axis=-1)
 
 class MainWindow(tk.Frame):
     def __init__(self, parent, exit_callback):
@@ -74,6 +77,7 @@ class MainWindow(tk.Frame):
         self.calibration_data = []
         self.calibrating = False
         self.electrode_status = [True] * 6
+        self.accuracy_data = []
         self.initUI()
 
     def initUI(self):
@@ -104,6 +108,14 @@ class MainWindow(tk.Frame):
         self.electrode_status_button = tk.Button(self.right_frame, text="Electrode Status",
                                                  command=self.show_electrode_status)
         self.electrode_status_button.pack(pady=10)
+
+        # Frame for accuracy plot
+        self.accuracy_frame = tk.Frame(self.right_frame, bg="white")
+        self.accuracy_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=1)
+        self.accuracy_fig, self.accuracy_ax = plt.subplots(figsize=(5, 3), dpi=100)
+        self.accuracy_canvas = FigureCanvasTkAgg(self.accuracy_fig, master=self.accuracy_frame)
+        self.accuracy_canvas.draw()
+        self.accuracy_canvas.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=1)
 
         self.small_icon_label = tk.Label(self.left_frame, bg="white")
         self.small_icon_label.place(relx=0.0, rely=1.0, anchor='sw')
@@ -169,8 +181,22 @@ class MainWindow(tk.Frame):
         self.fig.tight_layout(pad=3.0)
         self.canvas.draw()
 
-        prediction = make_prediction(model, eeg_data)
-        self.update_gui_with_prediction(prediction)
+        predictions, predicted_class = make_prediction(model, eeg_data)
+        self.update_gui_with_prediction(predicted_class)
+
+        # Calculate accuracy (assuming ground truth is the current action's index)
+        true_class = self.actions.index(action)
+        accuracy = predictions[0][true_class]
+        self.accuracy_data.append(accuracy)
+
+        # Update accuracy plot
+        self.accuracy_ax.clear()
+        self.accuracy_ax.plot(self.accuracy_data, label='Accuracy')
+        self.accuracy_ax.set_title('Model Accuracy')
+        self.accuracy_ax.set_xlabel('Calibration Step')
+        self.accuracy_ax.set_ylabel('Accuracy')
+        self.accuracy_ax.legend()
+        self.accuracy_canvas.draw()
 
         self.current_action += 1
         self.progress_bar.config(text=f"Progress: {self.current_action}/{len(self.actions)}")
@@ -201,7 +227,8 @@ class MainWindow(tk.Frame):
         print("Simulating Scroll Down")
 
     def complete_calibration(self):
-        messagebox.showinfo("Calibration Complete", "Calibration is complete!")
+        overall_accuracy = np.mean(self.accuracy_data) * 100
+        messagebox.showinfo("Calibration Complete", f"Calibration is complete!\nOverall Accuracy: {overall_accuracy:.2f}%")
         self.instruction_label.config(text="Calibration Complete")
         self.image_label.config(image='')
         self.image_label.image = None
